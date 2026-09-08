@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/permissions";
 import { hashPassword } from "@/lib/password";
-import { companySettingsSchema, serviceSchema, userSchema } from "@/lib/validation";
+import { companySettingsSchema, serviceSchema, userSchema, updateUserSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 export type { ActionState } from "@/lib/actions/orders";
 import type { ActionState } from "@/lib/actions/orders";
@@ -99,6 +99,43 @@ export async function createUser(_prevState: ActionState, formData: FormData): P
   });
 
   await logAudit({ userId: session.user.id, action: "USER_CREATED", entityType: "User", entityId: user.id, details: data.email });
+  revalidatePath("/settings");
+  return {};
+}
+
+export async function updateUser(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const session = await requireRole("ADMIN");
+  const id = formData.get("id") as string;
+
+  const parsed = updateUserSchema.safeParse({
+    name: formData.get("name"),
+    email: formData.get("email"),
+    role: formData.get("role"),
+    financeAccess: formData.get("financeAccess") === "on",
+    password: formData.get("password") || "",
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) fieldErrors[issue.path.join(".")] = issue.message;
+    return { error: "Please fix the highlighted fields.", fieldErrors };
+  }
+  const data = parsed.data;
+
+  const existing = await prisma.user.findFirst({ where: { email: data.email, NOT: { id } } });
+  if (existing) return { error: "Another user already uses this email." };
+
+  await prisma.user.update({
+    where: { id },
+    data: {
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      financeAccess: data.role === "ADMIN" ? true : !!data.financeAccess,
+      ...(data.password ? { passwordHash: await hashPassword(data.password) } : {}),
+    },
+  });
+
+  await logAudit({ userId: session.user.id, action: "USER_UPDATED", entityType: "User", entityId: id, details: data.email });
   revalidatePath("/settings");
   return {};
 }

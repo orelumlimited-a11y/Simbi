@@ -128,6 +128,14 @@ export const userSchema = z.object({
   password: z.string().min(8).max(200),
 });
 
+export const updateUserSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().email(),
+  role: z.enum(ROLES),
+  financeAccess: z.boolean().optional(),
+  password: z.string().min(8).max(200).optional().or(z.literal("")),
+});
+
 export const expenseSchema = z.object({
   orderId: z.string().optional().or(z.literal("")),
   category: z.enum(EXPENSE_CATEGORIES),

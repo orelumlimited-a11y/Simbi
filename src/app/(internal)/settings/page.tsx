@@ -4,8 +4,8 @@ import { CompanySettingsForm } from "@/components/settings/CompanySettingsForm";
 import { NewServiceForm } from "@/components/settings/NewServiceForm";
 import { NewUserForm } from "@/components/settings/NewUserForm";
 import { StageBadge } from "@/components/ui/StageBadge";
-import { toggleServiceActive, toggleUserActive, updateNotificationSetting } from "@/lib/actions/settings";
-import { ROLE_LABELS, type Role } from "@/lib/constants";
+import { toggleServiceActive, updateNotificationSetting } from "@/lib/actions/settings";
+import { UserRow } from "@/components/settings/UserRow";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { getCountryByCode } from "@/lib/countries";
 import clsx from "clsx";
@@ -134,24 +134,7 @@ export default async function SettingsPage() {
         <CardBody>
           <div className="space-y-2">
             {users.map((u) => (
-              <div key={u.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{u.name}</p>
-                  <p className="text-xs text-slate-400">{u.email} · {ROLE_LABELS[u.role as Role] ?? u.role}{u.financeAccess ? " · Finance access" : ""}</p>
-                </div>
-                <form action={toggleUserActive}>
-                  <input type="hidden" name="id" value={u.id} />
-                  <button
-                    type="submit"
-                    className={clsx(
-                      "rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset",
-                      u.active ? "bg-emerald-50 text-emerald-700 ring-emerald-300" : "bg-slate-100 text-slate-500 ring-slate-300"
-                    )}
-                  >
-                    {u.active ? "Active" : "Disabled"}
-                  </button>
-                </form>
-              </div>
+              <UserRow key={u.id} user={u} />
             ))}
           </div>
           <NewUserForm />
