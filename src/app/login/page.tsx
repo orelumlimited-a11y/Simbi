@@ -68,13 +68,6 @@ export default async function LoginPage({
               Sign in
             </button>
           </form>
-
-          <div className="mt-6 rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-500">
-            <p className="mb-1 font-medium text-slate-600">Demo accounts</p>
-            <p>Admin: admin@simbilogistics.example / Admin123!</p>
-            <p>Operations: ops@simbilogistics.example / Ops123!</p>
-            <p>Driver: driver1@simbilogistics.example / Driver123!</p>
-          </div>
         </div>
       </div>
     </div>
