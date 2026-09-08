@@ -1,0 +1,457 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: SQLite has no native enum support in Prisma. Role/Status/etc. fields
+// below are Strings whose allowed values are defined and validated centrally
+// in src/lib/constants.ts (source of truth) and enforced with Zod at every
+// mutation boundary. This also keeps the delivery-stage workflow configurable
+// (see DeliveryStage model) without a schema migration.
+
+// ---------------------------------------------------------------------------
+// Users & Access Control
+// ---------------------------------------------------------------------------
+
+// Role: ADMIN | OPERATIONS | DRIVER
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  role          String
+  active        Boolean  @default(true)
+  // Operations staff need to be explicitly granted access to financial data
+  financeAccess Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  driver         Driver?
+  ordersCreated  Order[]            @relation("OrderCreatedBy")
+  statusChanges  OrderStatusEvent[] @relation("StatusChangedBy")
+  auditLogs      AuditLog[]
+  expensesLogged Expense[]
+  stockReceipts  StockReceipt[]
+
+  @@index([role])
+}
+
+// ---------------------------------------------------------------------------
+// Customers
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  company   String?
+  email     String
+  phone     String
+  address   String?
+  city      String?
+  postcode  String?
+  country   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Contact preferences — which channels this customer has opted into for
+  // delivery notifications. Email defaults on (lowest friction); SMS/WhatsApp
+  // default off since they typically require explicit consent.
+  emailOptIn    Boolean @default(true)
+  smsOptIn      Boolean @default(false)
+  whatsappOptIn Boolean @default(false)
+
+  orders Order[]
+
+  @@index([email])
+  @@index([phone])
+}
+
+// ---------------------------------------------------------------------------
+// Drivers & Vehicles
+// ---------------------------------------------------------------------------
+
+// DriverStatus: ACTIVE | INACTIVE
+model Driver {
+  id         String   @id @default(cuid())
+  driverCode String   @unique
+  name       String
+  phone      String
+  email      String
+  status     String   @default("ACTIVE")
+  userId     String?  @unique
+  user       User?    @relation(fields: [userId], references: [id])
+  vehicleId  String?
+  vehicle    Vehicle? @relation(fields: [vehicleId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([status])
+}
+
+// VehicleStatus: ACTIVE | MAINTENANCE | INACTIVE
+model Vehicle {
+  id           String   @id @default(cuid())
+  type         String
+  registration String   @unique
+  capacityKg   Float?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+
+  drivers Driver[]
+  orders  Order[]
+}
+
+// ---------------------------------------------------------------------------
+// Vendor Management (vendors, warehouse stock, goods received). Packages can
+// optionally draw from Product stock when an order dispatches goods that are
+// already warehoused, rather than being a pure point-to-point delivery job.
+// ---------------------------------------------------------------------------
+
+model Vendor {
+  id          String   @id @default(cuid())
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  address     String?
+  city        String?
+  country     String?
+  notes       String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockReceipts StockReceipt[]
+
+  @@index([name])
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  sku             String?  @unique
+  name            String
+  description     String?
+  unit            String   @default("pcs")
+  currentStock    Int      @default(0)
+  reorderLevel    Int      @default(0)
+  currentUnitCost Float    @default(0)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  stockReceipts StockReceipt[]
+  packages      Package[]
+
+  @@index([name])
+}
+
+// A simple received-goods log: one row per delivery of stock from a vendor.
+// Logging a receipt increments Product.currentStock and refreshes
+// Product.currentUnitCost to the latest cost paid.
+model StockReceipt {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  vendorId     String
+  vendor       Vendor   @relation(fields: [vendorId], references: [id])
+  quantity     Int
+  unitCost     Float    @default(0)
+  totalCost    Float    @default(0)
+  receivedAt   DateTime @default(now())
+  note         String?
+  receivedById String?
+  receivedBy   User?    @relation(fields: [receivedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([productId])
+  @@index([vendorId])
+}
+
+// ---------------------------------------------------------------------------
+// Services & Delivery Stages (configurable)
+// ---------------------------------------------------------------------------
+
+model Service {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  basePrice   Float    @default(0)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  orders Order[]
+}
+
+model DeliveryStage {
+  id                String  @id @default(cuid())
+  key               String  @unique
+  label             String
+  sortOrder         Int
+  color             String // green | blue | orange | red | grey
+  isTerminalSuccess Boolean @default(false)
+  isTerminalFailure Boolean @default(false)
+  isProblem         Boolean @default(false)
+  active            Boolean @default(true)
+
+  currentOrders Order[]            @relation("CurrentStage")
+  events        OrderStatusEvent[] @relation("EventStage")
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+// Priority: STANDARD | HIGH | URGENT
+// PaymentStatus: UNPAID | PARTIAL | PAID | REFUNDED
+// PaymentMethod: CASH | CARD | BANK_TRANSFER | ONLINE | INVOICE
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  // Sender
+  senderName     String
+  senderPhone    String
+  pickupAddress  String
+  pickupCity     String
+  pickupPostcode String
+  pickupCountry  String
+
+  // Recipient
+  recipientName    String
+  recipientPhone   String
+  deliveryAddress  String
+  deliveryCity     String
+  deliveryPostcode String
+  deliveryCountry  String
+
+  // Delivery info
+  serviceId             String
+  service               Service   @relation(fields: [serviceId], references: [id])
+  priority               String    @default("STANDARD")
+  estimatedPickupDate    DateTime?
+  estimatedDeliveryDate  DateTime?
+  actualPickupDate       DateTime?
+  actualDeliveryDate     DateTime?
+  driverId               String?
+  driver                 Driver?   @relation(fields: [driverId], references: [id])
+  vehicleId              String?
+  vehicle                Vehicle?  @relation(fields: [vehicleId], references: [id])
+  deliveryInstructions   String?
+
+  currentStageKey String
+  currentStage    DeliveryStage @relation("CurrentStage", fields: [currentStageKey], references: [key])
+
+  // Financials
+  customerPrice   Float @default(0)
+  deliveryCost    Float @default(0)
+  driverCost      Float @default(0)
+  additionalFees  Float @default(0)
+  discount        Float @default(0)
+  tax             Float @default(0)
+  totalCharged    Float @default(0)
+  // Sum of package.costOfGoods across this order's packages — vendor stock
+  // dispatched as part of fulfilling this order, snapshotted at order time.
+  costOfGoods     Float @default(0)
+  estimatedProfit Float @default(0)
+  // Guards against double-restocking dispatched product quantities if an
+  // order transitions between multiple terminal-failure stages (e.g.
+  // RETURNED_TO_SENDER then CANCELLED).
+  stockRestored   Boolean @default(false)
+
+  paymentStatus String  @default("UNPAID")
+  paymentMethod String?
+
+  createdById String
+  createdBy   User   @relation("OrderCreatedBy", fields: [createdById], references: [id])
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  packages      Package[]
+  statusEvents  OrderStatusEvent[]
+  trackingToken TrackingToken?
+  payments      Payment[]
+  expenses      Expense[]
+  notifications Notification[]
+
+  @@index([customerId])
+  @@index([driverId])
+  @@index([currentStageKey])
+  @@index([createdAt])
+}
+
+model Package {
+  id              String  @id @default(cuid())
+  orderId         String
+  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  description     String
+  packageType     String
+  quantity        Int     @default(1)
+  weightKg        Float
+  lengthCm        Float?
+  widthCm         Float?
+  heightCm        Float?
+  specialHandling String?
+
+  // Optional link to warehoused vendor stock — set when this package is
+  // being dispatched from Product inventory rather than a pure logistics
+  // job. unitCost/costOfGoods are snapshotted at dispatch time so historical
+  // orders stay accurate even if the product's cost changes later.
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+  unitCost    Float    @default(0)
+  costOfGoods Float    @default(0)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderStatusEvent {
+  id               String        @id @default(cuid())
+  orderId          String
+  order            Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  previousStageKey String?
+  newStageKey      String
+  newStage         DeliveryStage @relation("EventStage", fields: [newStageKey], references: [key])
+  changedById      String?
+  changedBy        User?         @relation("StatusChangedBy", fields: [changedById], references: [id])
+  changedByRole    String?
+  location         String?
+  note             String?
+  createdAt        DateTime      @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Public Tracking
+// ---------------------------------------------------------------------------
+
+model TrackingToken {
+  id             String    @id @default(cuid())
+  orderId        String    @unique
+  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  token          String    @unique
+  createdAt      DateTime  @default(now())
+  lastAccessedAt DateTime?
+  accessCount    Int       @default(0)
+}
+
+// ---------------------------------------------------------------------------
+// Financials
+// ---------------------------------------------------------------------------
+
+// method/status reuse PaymentMethod / PaymentStatus string values
+model Payment {
+  id        String    @id @default(cuid())
+  orderId   String
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Float
+  method    String
+  status    String
+  reference String?
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([orderId])
+}
+
+// ExpenseCategory: DRIVER | FUEL | DELIVERY | PACKAGING | THIRD_PARTY_CARRIER | OTHER
+model Expense {
+  id          String   @id @default(cuid())
+  orderId     String?
+  order       Order?   @relation(fields: [orderId], references: [id])
+  category    String
+  amount      Float
+  description String?
+  date        DateTime @default(now())
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
+  @@index([category])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (architecture / placeholders for future provider integration)
+// ---------------------------------------------------------------------------
+
+model NotificationSetting {
+  id              String  @id @default(cuid())
+  eventKey        String  @unique // e.g. ORDER_CREATED, OUT_FOR_DELIVERY, DELIVERED
+  label           String
+  emailEnabled    Boolean @default(true)
+  smsEnabled      Boolean @default(false)
+  whatsappEnabled Boolean @default(false)
+}
+
+// NotificationChannel: EMAIL | SMS | WHATSAPP
+// NotificationStatus: PENDING | SENT | FAILED | DISABLED
+model Notification {
+  id        String    @id @default(cuid())
+  orderId   String
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  eventKey  String
+  channel   String
+  recipient String
+  status    String    @default("PENDING")
+  payload   String?
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// Settings & Audit
+// ---------------------------------------------------------------------------
+
+model CompanySettings {
+  id          String  @id @default("singleton")
+  name        String  @default("Simbi Logistics")
+  logoUrl     String?
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  // Operating country (ISO 3166-1 alpha-2) and currency (ISO 4217) — drives
+  // default currency formatting and address-form defaults app-wide. See
+  // src/lib/countries.ts for the lookup table.
+  countryCode String  @default("US")
+  currency    String  @default("USD")
+}
+
+model OrderNumberCounter {
+  year  Int @id
+  count Int @default(0)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  details    String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
