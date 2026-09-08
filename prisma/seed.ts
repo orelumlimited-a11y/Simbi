@@ -195,16 +195,14 @@ async function main() {
 
   const customers = [];
   for (const c of customersData) {
-    const customer = await prisma.customer.upsert({
-      where: { email: c.email },
-      update: {},
-      create: { ...c, address: `${Math.floor(Math.random() * 900) + 100} Main St`, postcode: "00000" },
-    }).catch(async () => {
-      // email not unique in schema; fall back to findFirst/create
-      const existing = await prisma.customer.findFirst({ where: { email: c.email } });
-      if (existing) return existing;
-      return prisma.customer.create({ data: { ...c, address: `${Math.floor(Math.random() * 900) + 100} Main St`, postcode: "00000" } });
-    });
+    // Customer.email isn't a unique field in the schema, so upsert isn't
+    // available here — find-or-create instead.
+    const existing = await prisma.customer.findFirst({ where: { email: c.email } });
+    const customer =
+      existing ??
+      (await prisma.customer.create({
+        data: { ...c, address: `${Math.floor(Math.random() * 900) + 100} Main St`, postcode: "00000" },
+      }));
     customers.push(customer);
   }
 

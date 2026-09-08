@@ -18,7 +18,7 @@ export function ProfitabilityChart({
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-        <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }} formatter={(v: number) => formatCurrency(v, currency, locale)} />
+        <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }} formatter={(v) => formatCurrency(Number(v), currency, locale)} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Bar dataKey="revenue" name="Revenue" fill="#155dfc" radius={[4, 4, 0, 0]} />
         <Bar dataKey="costs" name="Costs" fill="#f59e0b" radius={[4, 4, 0, 0]} />

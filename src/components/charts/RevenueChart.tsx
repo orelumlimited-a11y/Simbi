@@ -20,7 +20,7 @@ export function RevenueChart({
         <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
         <Tooltip
           contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}
-          formatter={(v: number) => [formatCurrency(v, currency, locale), "Revenue"]}
+          formatter={(v) => [formatCurrency(Number(v), currency, locale), "Revenue"]}
         />
         <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
       </BarChart>

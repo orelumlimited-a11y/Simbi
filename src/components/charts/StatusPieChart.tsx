@@ -25,7 +25,7 @@ export function StatusPieChart({ data }: { data: { name: string; value: number; 
         </Pie>
         <Tooltip
           contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}
-          formatter={(value: number, name: string) => [`${value} orders`, name]}
+          formatter={(value, name) => [`${value} orders`, name]}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
       </PieChart>

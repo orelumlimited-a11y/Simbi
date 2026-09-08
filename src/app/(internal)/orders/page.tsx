@@ -85,7 +85,7 @@ export default async function OrdersPage({
           <p className="text-sm text-slate-500">{total} order{total !== 1 ? "s" : ""} found</p>
         </div>
         <div className="flex gap-2">
-          <LinkButton href={`/api/orders/export?${new URLSearchParams(Object.fromEntries(Object.entries(sp).filter(([, v]) => v))).toString()}`} variant="secondary">
+          <LinkButton href={`/api/orders/export?${new URLSearchParams(Object.fromEntries(Object.entries(sp).filter((e): e is [string, string] => Boolean(e[1])))).toString()}`} variant="secondary">
             <Download className="h-4 w-4" /> Export CSV
           </LinkButton>
           <LinkButton href="/orders/new">
