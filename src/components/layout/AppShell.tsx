@@ -37,18 +37,18 @@ export function AppShell({
 
       {mobileOpen && (
         <div className="fixed inset-0 z-40 flex md:hidden">
-          <div className="w-64 bg-[var(--sidebar)]">
-            <div className="flex h-16 items-center justify-between px-4">
+          <div className="flex w-64 flex-col overflow-y-auto bg-[var(--sidebar)]">
+            <div className="flex h-16 shrink-0 items-center justify-between px-4">
               <div className="flex items-center gap-2">
                 <Logo size={28} />
                 <span className="text-sm font-semibold text-white">Simbi Logistics</span>
               </div>
-              <button onClick={() => setMobileOpen(false)} className="text-slate-300">
+              <button onClick={() => setMobileOpen(false)} className="p-2 text-slate-300" aria-label="Close menu">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div onClick={() => setMobileOpen(false)}>
-              <Sidebar role={role} financeAccess={financeAccess} />
+            <div className="flex flex-1 flex-col" onClick={() => setMobileOpen(false)}>
+              <Sidebar role={role} financeAccess={financeAccess} inDrawer />
             </div>
           </div>
           <div className="flex-1 bg-black/40" onClick={() => setMobileOpen(false)} />
@@ -58,7 +58,7 @@ export function AppShell({
       <div className="flex min-h-screen flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-6">
           <div className="flex items-center gap-3">
-            <button onClick={() => setMobileOpen(true)} className="text-slate-500 md:hidden">
+            <button onClick={() => setMobileOpen(true)} className="-ml-2 p-2 text-slate-500 md:hidden" aria-label="Open menu">
               <Menu className="h-5 w-5" />
             </button>
             <form onSubmit={handleSearch} className="hidden items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 md:flex">

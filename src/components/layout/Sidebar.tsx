@@ -37,7 +37,16 @@ const NAV: NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings, roles: ["ADMIN"] },
 ];
 
-export function Sidebar({ role, financeAccess }: { role: Role; financeAccess: boolean }) {
+export function Sidebar({
+  role,
+  financeAccess,
+  inDrawer = false,
+}: {
+  role: Role;
+  financeAccess: boolean;
+  // Rendered inside the mobile drawer: always visible, and the drawer supplies its own header.
+  inDrawer?: boolean;
+}) {
   const pathname = usePathname();
 
   const items = NAV.filter((item) => {
@@ -47,11 +56,18 @@ export function Sidebar({ role, financeAccess }: { role: Role; financeAccess: bo
   });
 
   return (
-    <aside className="hidden w-60 shrink-0 flex-col bg-[var(--sidebar)] text-slate-300 md:flex">
-      <div className="flex h-16 items-center gap-2 px-5">
-        <Logo size={32} />
-        <span className="text-sm font-semibold text-white">Simbi Logistics</span>
-      </div>
+    <aside
+      className={clsx(
+        "shrink-0 flex-col bg-[var(--sidebar)] text-slate-300",
+        inDrawer ? "flex flex-1" : "hidden w-60 md:flex"
+      )}
+    >
+      {!inDrawer && (
+        <div className="flex h-16 items-center gap-2 px-5">
+          <Logo size={32} />
+          <span className="text-sm font-semibold text-white">Simbi Logistics</span>
+        </div>
+      )}
       <nav className="flex-1 space-y-0.5 px-3 py-2">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
